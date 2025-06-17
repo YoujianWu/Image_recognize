@@ -26,8 +26,15 @@ class PointTransFormer:
             transform = self.tf_buffer.lookup_transform("laser","camera_depth_optical_frame",rospy.Time(0))
             point_lidar = tf2_geometry_msgs.do_transform_point(data, transform)
             self.transformed_pub.publish(point_lidar)
-            
-            print(np.arctan2(point_lidar.point.y,point_lidar.point.x))
+            angle = np.arctan2(point_lidar.point.y,point_lidar.point.x)
+            # compensate
+            # a = int((angle + 0.760577)/self.lidar_data.angle_increment)
+            # if a==335:
+            #     print(1.6699999570846558)
+            # else:
+            #     print(self.lidar_data.ranges[a])
+            a = int((angle - self.lidar_data.angle_min)/self.lidar_data.angle_increment)
+            print(self.lidar_data.ranges[a])
         except tf2_ros.LookupException as e:
             rospy.logerr(f"lookup transform error: {e}")
             
