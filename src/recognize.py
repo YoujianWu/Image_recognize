@@ -20,6 +20,7 @@ class YOLOImageDetector:
         self.bridge = CvBridge()
         self.image_sub = rospy.Subscriber("/usb_cam/image_raw", Image, self.image_callback)
         self.point_pub = rospy.Publisher("/camera_optical_point", PointStamped, queue_size=10)
+        self.pixel_point_pub = rospy.Publisher("/pixel_point", PointStamped, queue_size=10)
          # 创建tf_buffer，所有的坐标变化找buffer要
         self.tf_buffer = tf2_ros.Buffer()
         # api内部已经实现了订阅
@@ -44,6 +45,14 @@ class YOLOImageDetector:
             xyxy = results[0].boxes.xyxy[0].tolist()
             x_center = (xyxy[0] + xyxy[2]) / 2
             y_center = (xyxy[1] + xyxy[3]) / 2
+            # 发布像素坐标
+            pixel = PointStamped()
+            pixel.point.x = x_center
+            pixel.point.y = y_center
+            pixel.point.z = 0
+            pixel.header.stamp = rospy.Time.now()
+            pixel.header.frame_id = "pixel_frame"
+            self.pixel_point_pub.publish(pixel)
             pixel_point = np.array([x_center,y_center,1])
             # 计算归一化相机坐标系的坐标点
             k_inv = np.linalg.inv(k)
