@@ -6,7 +6,52 @@ import numpy as np
 
 from geometry_msgs.msg import PointStamped
 from sensor_msgs.msg import LaserScan
-import tf2_geometry_msgs  # 用于 do_transform_point
+
+def quaternion_matrix(q):
+    x, y, z, w = q
+    xx = x * x
+    xy = x * y
+    xz = x * z
+    xw = x * w
+    yy = y * y
+    yz = y * z
+    yw = y * w
+    zz = z * z
+    zw = z * w
+
+    rot_mat = np.array([
+        [1 - 2*yy - 2*zz,     2*xy - 2*zw,     2*xz + 2*yw, 0],
+        [    2*xy + 2*zw, 1 - 2*xx - 2*zz,     2*yz - 2*xw, 0],
+        [    2*xz - 2*yw,     2*yz + 2*xw, 1 - 2*xx - 2*yy, 0],
+        [                0,                 0,               0, 1]
+    ])
+    return rot_mat
+
+def do_transform_point(point_stamp, transform):
+    # 提取平移
+    trans = transform.transform.translation
+    quat = transform.transform.rotation
+
+    # 四元数转旋转矩阵 (4x4)
+    rot_mat = quaternion_matrix([quat.x, quat.y, quat.z, quat.w])
+
+    # 设置平移部分
+    rot_mat[0, 3] = trans.x
+    rot_mat[1, 3] = trans.y
+    rot_mat[2, 3] = trans.z
+
+    # 构造点 (x, y, z, 1) 用于齐次变换
+    point_vec = np.array([point_stamp.point.x, point_stamp.point.y, point_stamp.point.z, 1.0])
+
+    # 应用变换
+    transformed_point = np.dot(rot_mat, point_vec)
+
+    # 返回新的点
+    result = PointStamped()
+    result.point.x = transformed_point[0]
+    result.point.y = transformed_point[1]
+    result.point.z = transformed_point[2]
+    return result
 
 
 class PointTransFormer:
@@ -23,41 +68,39 @@ class PointTransFormer:
         
     def point_callback(self, data):
         # 从相机光学坐标系变换到base_link下，只有y,z变化
-        try:
-            transform = self.tf_buffer.lookup_transform("laser","camera_depth_optical_frame",rospy.Time(0))
-            point_lidar = tf2_geometry_msgs.do_transform_point(data, transform)
-            self.transformed_pub.publish(point_lidar)
-            angle = np.arctan2(point_lidar.point.y,point_lidar.point.x)
-            # 补偿
-            a = int((angle + 0.760577)/self.lidar_data.angle_increment)
-            if a==335:
-                real_lidar_dis = 1.6699999570846558
-            else:
-                real_lidar_dis = self.lidar_data.ranges[a]   
-            virtual_lidar_dis = np.sqrt(np.square(point_lidar.point.y)+np.square(point_lidar.point.x))
-            # 缩放系数
-            scale = real_lidar_dis/virtual_lidar_dis
-            # 雷达坐标下红绿灯坐标
-            real_lidar_point = PointStamped()
-            real_lidar_point.header.stamp = rospy.Time.now()
-            real_lidar_point.point.x = point_lidar.point.x * scale
-            real_lidar_point.point.y = point_lidar.point.y * scale
-            real_lidar_point.point.z = point_lidar.point.z * scale
-            transform = self.tf_buffer.lookup_transform("base_link","laser",rospy.Time(0))
-            # base_link坐标下红绿灯坐标
-            point_base = tf2_geometry_msgs.do_transform_point(real_lidar_point, transform)
-            point_base.header.frame_id = "base_link"
-            self.point_base_pub.publish(point_base)
-        
-        except tf2_ros.LookupException as e:
-            rospy.logerr(f"lookup transform error: {e}")
+        transform = self.tf_buffer.lookup_transform("laser","camera_depth_optical_frame",rospy.Time(0))
+        point_lidar = do_transform_point(data, transform)
+        self.transformed_pub.publish(point_lidar)
+        angle = np.arctan2(point_lidar.point.y,point_lidar.point.x)
+        print(angle)
+        # 补偿
+        a = int((angle + 0.760577)/self.lidar_data.angle_increment)
+        if a==335:
+            real_lidar_dis = 1.6699999570846558
+        else:
+            real_lidar_dis = self.lidar_data.ranges[a]
+        virtual_lidar_dis = np.sqrt(np.square(point_lidar.point.y)+np.square(point_lidar.point.x))
+        # 缩放系数
+        scale = real_lidar_dis/virtual_lidar_dis
+        # 雷达坐标下红绿灯坐标
+        real_lidar_point = PointStamped()
+        real_lidar_point.header.stamp = rospy.Time.now()
+        real_lidar_point.point.x = point_lidar.point.x * scale
+        real_lidar_point.point.y = point_lidar.point.y * scale
+        real_lidar_point.point.z = point_lidar.point.z * scale
+        transform = self.tf_buffer.lookup_transform("base_link","laser",rospy.Time(0))
+        # base_link坐标下红绿灯坐标
+        point_base = do_transform_point(real_lidar_point, transform)
+        point_base.header.frame_id = "base_link"
+        self.point_base_pub.publish(point_base)
             
     def lidar_callback(self,data):
         self.lidar_data = data
 
 if __name__ == '__main__':
     # anonymous表示是否允许同样名字的节点存在，会加后缀
-    rospy.init_node('point_transformer', anonymous=False) 
+    rospy.init_node('point_transformer', anonymous=False)
+    print("Tranforming.....")
     transformer = PointTransFormer()
     try:
         rospy.spin()

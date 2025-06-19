@@ -28,11 +28,18 @@ class YOLOImageDetector:
     def __init__(self):
         #设置成员变量
         self.bridge = CvBridge()
-        self.image_sub = rospy.Subscriber("/usb_cam/image_raw", Image, self.image_callback)
         self.point_pub = rospy.Publisher("/camera_optical_point", PointStamped, queue_size=10)
         self.pixel_point_pub = rospy.Publisher("/pixel_point", PointStamped, queue_size=10)
         # 加载 bestW 模型
-        self.model = YOLO("/home/wheeltec/my_ws/src/image_recognize/src/bestW.pt")
+        self.model = None
+        try:
+            rospy.loginfo("Model loading .....")
+            self.model = YOLO("/home/wheeltec/my_ws/src/image_recognize/src/bestW.pt")
+            rospy.loginfo("Model loaded successfully.")
+            # 只有模型加载成功后才开启订阅
+            self.image_sub = rospy.Subscriber("/usb_cam/image_raw", Image, self.image_callback)
+        except Exception as e:
+            rospy.logerr(f"Failed to load model: {e}")
 
     def image_callback(self, data):
         try:
