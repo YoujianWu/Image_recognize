@@ -1,17 +1,27 @@
 #!/usr/bin/env python3
 
 import rospy
-import tf2_ros
 
 from sensor_msgs.msg import Image
 from std_msgs.msg import Float32MultiArray
 from geometry_msgs.msg import PointStamped
-import tf2_geometry_msgs  # 用于 do_transform_point
 
+import sys
 import numpy as np
 import cv2
 from cv_bridge import CvBridge, CvBridgeError
 from ultralytics import YOLO
+
+def imgmsg_to_cv2(img_msg):
+    dtype = np.dtype("uint8")
+    dtype = dtype.newbyteorder('>' if img_msg.is_bigendian else '<')
+    image_opencv = np.ndarray(shape=(img_msg.height, img_msg.width, 3), # and three channels of data. Since OpenCV works with bgr natively, we don't need to reorder the channels.
+                              dtype=dtype, buffer=img_msg.data)
+    # If the byt order is different between the message and the system.
+    if img_msg.is_bigendian == (sys.byteorder == 'little'):
+        image_opencv = image_opencv.byteswap().newbyteorder()
+    image_opencv = cv2.cvtColor(image_opencv, cv2.COLOR_RGB2BGR)
+    return image_opencv
 
 
 class YOLOImageDetector:
@@ -21,23 +31,19 @@ class YOLOImageDetector:
         self.image_sub = rospy.Subscriber("/usb_cam/image_raw", Image, self.image_callback)
         self.point_pub = rospy.Publisher("/camera_optical_point", PointStamped, queue_size=10)
         self.pixel_point_pub = rospy.Publisher("/pixel_point", PointStamped, queue_size=10)
-         # 创建tf_buffer，所有的坐标变化找buffer要
-        self.tf_buffer = tf2_ros.Buffer()
-        # api内部已经实现了订阅
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         # 加载 bestW 模型
-        self.model = YOLO("/home/kook/my_ws/src/image_recognize/src/bestW.pt")  
+        self.model = YOLO("/home/wheeltec/my_ws/src/image_recognize/src/bestW.pt")
 
     def image_callback(self, data):
         try:
             # 将 ROS Image 转换为 OpenCV 图像
-            cv_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
+            cv_image = imgmsg_to_cv2(data)
         except CvBridgeError as e:
             rospy.logerr(e)
             return
         # 使用 YOLO 做推理, 禁用输出
         results = self.model(cv_image,verbose=False)
-        
+
         # 相机的内参矩阵
         k = np.array([[400,0,320],[0,400,240],[0,0,1]])
         if results[0]:
@@ -67,19 +73,19 @@ class YOLOImageDetector:
             optical_point.point.x = temp_point[0]
             optical_point.point.y = temp_point[1]
             optical_point.point.z = temp_point[2]
-            self.point_pub.publish(optical_point)  
-        
+            self.point_pub.publish(optical_point)
+
         # 绘制结果
         annotated_frame = results[0].plot()
 
         # 显示图像
         cv2.imshow("YOLO Detection", annotated_frame)
         cv2.waitKey(1)
-    
+
 
 if __name__ == '__main__':
     # anonymous表示是否允许同样名字的节点存在，会加后缀
-    rospy.init_node('yolo_image_detector', anonymous=False) 
+    rospy.init_node('yolo_image_detector', anonymous=False)
     detector = YOLOImageDetector()
     try:
         rospy.spin()
