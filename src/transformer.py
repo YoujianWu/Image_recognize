@@ -4,6 +4,7 @@ import rospy
 import tf2_ros
 import numpy as np
 
+from std_msgs.msg import Float32
 from geometry_msgs.msg import PointStamped
 from sensor_msgs.msg import LaserScan
 
@@ -23,7 +24,7 @@ def quaternion_matrix(q):
         [1 - 2*yy - 2*zz,     2*xy - 2*zw,     2*xz + 2*yw, 0],
         [    2*xy + 2*zw, 1 - 2*xx - 2*zz,     2*yz - 2*xw, 0],
         [    2*xz - 2*yw,     2*yz + 2*xw, 1 - 2*xx - 2*yy, 0],
-        [                0,                 0,               0, 1]
+        [              0,                0,              0, 1]
     ])
     return rot_mat
 
@@ -61,6 +62,7 @@ class PointTransFormer:
         self.lidar_sub = rospy.Subscriber("/scan", LaserScan, self.lidar_callback)
         self.transformed_pub = rospy.Publisher("/transformed_point_lidar", PointStamped, queue_size=10)
         self.point_base_pub = rospy.Publisher("/base_point", PointStamped, queue_size=10)
+        self.distance_pub = rospy.Publisher("/distance", Float32, queue_size=10)
          # 创建tf_buffer，所有的坐标变化找buffer要
         self.tf_buffer = tf2_ros.Buffer()
         # api内部已经实现了订阅
@@ -72,8 +74,6 @@ class PointTransFormer:
         point_lidar = do_transform_point(data, transform)
         self.transformed_pub.publish(point_lidar)
         angle = np.arctan2(point_lidar.point.y,point_lidar.point.x)
-        print(angle)
-        # 补偿
         a = int((angle + 0.760577)/self.lidar_data.angle_increment)
         if a==335:
             real_lidar_dis = 1.6699999570846558
@@ -93,6 +93,10 @@ class PointTransFormer:
         point_base = do_transform_point(real_lidar_point, transform)
         point_base.header.frame_id = "base_link"
         self.point_base_pub.publish(point_base)
+        # 发布红绿灯距离
+        dis = Float32()
+        dis = point_base.point.x
+        self.distance_pub.publish(dis)
             
     def lidar_callback(self,data):
         self.lidar_data = data
