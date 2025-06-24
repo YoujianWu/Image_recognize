@@ -24,7 +24,7 @@ def quaternion_matrix(q):
         [1 - 2*yy - 2*zz,     2*xy - 2*zw,     2*xz + 2*yw, 0],
         [    2*xy + 2*zw, 1 - 2*xx - 2*zz,     2*yz - 2*xw, 0],
         [    2*xz - 2*yw,     2*yz + 2*xw, 1 - 2*xx - 2*yy, 0],
-        [              0,                0,              0, 1]
+        [              0,               0,               0, 1]
     ])
     return rot_mat
 
@@ -62,7 +62,7 @@ class PointTransFormer:
         self.lidar_sub = rospy.Subscriber("/scan", LaserScan, self.lidar_callback)
         self.transformed_pub = rospy.Publisher("/transformed_point_lidar", PointStamped, queue_size=10)
         self.point_base_pub = rospy.Publisher("/base_point", PointStamped, queue_size=10)
-        self.distance_pub = rospy.Publisher("/distance", Float32, queue_size=10)
+        self.distance_pub = rospy.Publisher("/traffic_light_distance", Float32, queue_size=10)
          # 创建tf_buffer，所有的坐标变化找buffer要
         self.tf_buffer = tf2_ros.Buffer()
         # api内部已经实现了订阅

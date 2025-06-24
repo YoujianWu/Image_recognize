@@ -3,7 +3,7 @@
 import rospy
 
 from sensor_msgs.msg import Image
-from std_msgs.msg import Int8
+from std_msgs.msg import String
 from geometry_msgs.msg import PointStamped
 
 import sys
@@ -30,7 +30,7 @@ class YOLOImageDetector:
         self.bridge = CvBridge()
         self.point_pub = rospy.Publisher("/camera_optical_point", PointStamped, queue_size=10)
         self.pixel_point_pub = rospy.Publisher("/pixel_point", PointStamped, queue_size=10)
-        self.light_id_pub = rospy.Publisher("/pass", Int8, queue_size=10)
+        self.light_status_pub = rospy.Publisher("/traffic_light", String, queue_size=10)
         # 加载 bestW 模型
         self.model = None
         try:
@@ -83,12 +83,12 @@ class YOLOImageDetector:
             optical_point.point.z = temp_point[2]
             self.point_pub.publish(optical_point)
             # 根据红绿灯颜色来判断是否让小车通过
-            pass_through = Int8()
+            status = String()
             if int(results[0].boxes.cls.item()):
-                pass_through = 0
+                status = "red"
             else:
-                pass_through = 1     
-            self.light_id_pub.publish(pass_through)
+                status = "green"     
+            self.light_status_pub.publish(status)
             
 
         # 绘制结果
