@@ -1,0 +1,13 @@
+<launch>
+
+    <!-- 启动 recognize.py 节点 -->
+    <node name="recognize_node" pkg="image_recognize" type="recognize.py" output="screen" />
+
+    <!-- 启动 transformer.py 节点 -->
+    <node name="transformer_node" pkg="image_recognize" type="transformer.py" output="screen" />
+    
+    <!-- 启动 controller.py 节点 -->
+    <node name="controller_node" pkg="image_recognize" type="controller.py" output="screen" />
+
+
+</launch>

@@ -34,11 +34,11 @@ class TrafficNavController:
         self.status_window_after_stop = deque(maxlen=10)
 
         self.rate = rospy.Rate(10)  # 10Hz
-        rospy.loginfo("交通灯导航控制器已启动。")
+        rospy.loginfo("控制器已启动。")
 
     def goal_cb(self, msg):
         self.last_goal = msg
-        rospy.loginfo_throttle(5, "接收到新的导航目标点。")
+        rospy.loginfo_throttle(1, "接收到新的导航目标点")
 
     def distance_cb(self, msg):
         try:
@@ -78,7 +78,7 @@ class TrafficNavController:
                            list(self.status_window_after_stop), green_or_none, red_count)
 
             if len(self.status_window_after_stop) == 10 and green_or_none > red_count:
-                rospy.loginfo("✅ 满足条件：green+none > red，恢复导航")
+                rospy.loginfo("满足条件：green+none > red，恢复导航")
                 self.resume_navigation()
                 self.should_stop = False
                 self.status_window_after_stop.clear()
