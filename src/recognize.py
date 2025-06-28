@@ -12,6 +12,24 @@ import cv2
 from cv_bridge import CvBridge, CvBridgeError
 from ultralytics import YOLO
 
+def select_highest_confidence_detection(results):
+    highest_confidence = 0
+    best_result = None
+
+    for result in results:
+        for box in result.boxes:
+            # 假设置信度可以通过 box.conf 获取
+            confidence = box.conf.item()
+            if confidence > highest_confidence:
+                highest_confidence = confidence
+                best_result = box
+
+    if best_result is not None:
+        cls = int(best_result.cls.item())
+        return best_result
+    else:
+        return None
+
 def imgmsg_to_cv2(img_msg):
     dtype = np.dtype("uint8")
     dtype = dtype.newbyteorder('>' if img_msg.is_bigendian else '<')
@@ -36,6 +54,7 @@ class YOLOImageDetector:
         try:
             rospy.loginfo("Model loading .....")
             self.model = YOLO("/home/wheeltec/my_ws/src/image_recognize/src/bestW.pt")
+            print(f"Model is running on: {next(self.model.model.parameters()).device}")
             rospy.loginfo("Model loaded successfully.")
             # 只有模型加载成功后才开启订阅
             self.image_sub = rospy.Subscriber("/usb_cam/image_raw", Image, self.image_callback)
@@ -51,12 +70,13 @@ class YOLOImageDetector:
             return
         # 使用 YOLO 做推理, 禁用输出
         results = self.model(cv_image,verbose=False)
+        box = select_highest_confidence_detection(results[0])    
 
         # 相机的内参矩阵
         k = np.array([[400,0,320],[0,400,240],[0,0,1]])
         if results[0]:
             # 计算像素平面坐标的位置
-            xyxy = results[0].boxes.xyxy[0].tolist()
+            xyxy = box.xyxy[0].tolist()
             x_center = (xyxy[0] + xyxy[2]) / 2
             y_center = (xyxy[1] + xyxy[3]) / 2
             # 发布像素坐标
@@ -84,7 +104,7 @@ class YOLOImageDetector:
             self.point_pub.publish(optical_point)
             # 根据红绿灯颜色来判断是否让小车通过
             status = String()
-            if int(results[0].boxes.cls.item()):
+            if int(box.cls.item()):
                 status = "red"
             else:
                 status = "green"     
